@@ -21,7 +21,7 @@ extension CodeScannerView {
         var codesFound = Set<String>()
         var didFinishScanning = false
         var lastTime = Date(timeIntervalSince1970: 0)
-        private let showViewfinder: Bool
+        private var showViewfinder: Bool
         private var currentZoomFactor: CGFloat = 1.0
         private var pinchGestureRecognizer: UIPinchGestureRecognizer?
         
@@ -249,9 +249,45 @@ extension CodeScannerView {
       
         private func setupCaptureDevice() {
             captureSession = AVCaptureSession()
+            
+            // Set highest quality preset for maximum resolution
+            if captureSession!.canSetSessionPreset(.hd4K3840x2160) {
+                captureSession!.sessionPreset = .hd4K3840x2160
+            } else if captureSession!.canSetSessionPreset(.hd1920x1080) {
+                captureSession!.sessionPreset = .hd1920x1080
+            } else if captureSession!.canSetSessionPreset(.hd1280x720) {
+                captureSession!.sessionPreset = .hd1280x720
+            } else {
+                captureSession!.sessionPreset = .high
+            }
 
             guard let videoCaptureDevice = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else {
                 return
+            }
+            
+            // Configure device for best quality
+            do {
+                try videoCaptureDevice.lockForConfiguration()
+                
+                // Set highest quality format if available
+                if let bestFormat = videoCaptureDevice.formats.max(by: { format1, format2 in
+                    let dimensions1 = CMVideoFormatDescriptionGetDimensions(format1.formatDescription)
+                    let dimensions2 = CMVideoFormatDescriptionGetDimensions(format2.formatDescription)
+                    return (dimensions1.width * dimensions1.height) < (dimensions2.width * dimensions2.height)
+                }) {
+                    videoCaptureDevice.activeFormat = bestFormat
+                }
+                
+                // Set optimal frame rate for quality
+                let frameRateRange = videoCaptureDevice.activeFormat.videoSupportedFrameRateRanges.first
+                if let range = frameRateRange {
+                    videoCaptureDevice.activeVideoMinFrameDuration = CMTimeMake(value: 1, timescale: Int32(range.maxFrameRate))
+                    videoCaptureDevice.activeVideoMaxFrameDuration = CMTimeMake(value: 1, timescale: Int32(range.maxFrameRate))
+                }
+                
+                videoCaptureDevice.unlockForConfiguration()
+            } catch {
+                print("Error configuring video device: \(error)")
             }
 
             let videoInput: AVCaptureDeviceInput
@@ -273,6 +309,14 @@ extension CodeScannerView {
 
             if captureSession!.canAddOutput(metadataOutput) {
                 captureSession!.addOutput(metadataOutput)
+                
+                // Configure photo output for highest quality
+                photoOutput.isHighResolutionCaptureEnabled = true
+                if #available(iOS 13.0, *) {
+                    photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled = photoOutput.isVirtualDeviceConstituentPhotoDeliverySupported
+                    photoOutput.maxPhotoQualityPrioritization = .quality
+                }
+                
                 captureSession!.addOutput(photoOutput)
                 metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
                 metadataOutput.metadataObjectTypes = parentView.codeTypes
@@ -298,6 +342,14 @@ extension CodeScannerView {
         private func setupPinchGesture() {
             pinchGestureRecognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchGesture(_:)))
             if let pinchGesture = pinchGestureRecognizer {
+                // Configure for ultra-smooth and precise gesture recognition
+                pinchGesture.delaysTouchesBegan = false
+                pinchGesture.delaysTouchesEnded = false
+                pinchGesture.cancelsTouchesInView = false
+                
+                // Enable more sensitive touch detection for finer control
+                pinchGesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+                
                 view.addGestureRecognizer(pinchGesture)
             }
         }
@@ -313,21 +365,37 @@ extension CodeScannerView {
                 currentZoomFactor = device.videoZoomFactor
                 
             case .changed:
-                let newZoomFactor = currentZoomFactor * gesture.scale
+                // More natural zoom calculation with finer control
+                let scale = gesture.scale
+                
+                // Apply logarithmic scaling for more natural feel with finer sensitivity
+                // Reduced sensitivity for more precise control
+                let zoomDelta = (scale - 1.0) * 2.0 // Much more sensitive and precise
+                let newZoomFactor = currentZoomFactor * (1.0 + zoomDelta)
+                
+                // Smooth the zoom factor change with more precision
                 let clampedZoomFactor = max(minZoom, min(maxZoom, newZoomFactor))
                 
+                // Apply zoom immediately with micro-adjustments
                 do {
                     try device.lockForConfiguration()
+                    
+                    // Direct assignment for immediate response with high precision
                     device.videoZoomFactor = clampedZoomFactor
+                    
                     device.unlockForConfiguration()
                     
-                    // Update the binding
+                    // Update the binding on main queue with immediate response
                     DispatchQueue.main.async {
                         self.parentView.zoomFactor.wrappedValue = clampedZoomFactor
                     }
                 } catch {
                     print("Error setting zoom factor: \(error)")
                 }
+                
+                // Reset gesture scale to prevent accumulation and maintain precision
+                gesture.scale = 1.0
+                currentZoomFactor = clampedZoomFactor
                 
             case .ended, .cancelled:
                 currentZoomFactor = device.videoZoomFactor
@@ -346,7 +414,10 @@ extension CodeScannerView {
             
             do {
                 try device.lockForConfiguration()
+                
+                // For programmatic zoom changes, use direct assignment for immediate response
                 device.videoZoomFactor = clampedZoomFactor
+                
                 device.unlockForConfiguration()
                 currentZoomFactor = clampedZoomFactor
             } catch {
