@@ -89,6 +89,9 @@ public struct CodeScannerView: UIViewControllerRepresentable {
     public var isPaused: Bool
     public var isGalleryPresented: Binding<Bool>
     public var videoCaptureDevice: AVCaptureDevice?
+    public var zoomFactor: Binding<CGFloat>
+    public var minZoomFactor: CGFloat
+    public var maxZoomFactor: CGFloat
     public var completion: (Result<ScanResult, ScanError>) -> Void
 
     public init(
@@ -104,6 +107,9 @@ public struct CodeScannerView: UIViewControllerRepresentable {
         isPaused: Bool = false,
         isGalleryPresented: Binding<Bool> = .constant(false),
         videoCaptureDevice: AVCaptureDevice? = AVCaptureDevice.bestForVideo,
+        zoomFactor: Binding<CGFloat> = .constant(1.0),
+        minZoomFactor: CGFloat = 1.0,
+        maxZoomFactor: CGFloat = 10.0,
         completion: @escaping (Result<ScanResult, ScanError>) -> Void
     ) {
         self.codeTypes = codeTypes
@@ -118,6 +124,9 @@ public struct CodeScannerView: UIViewControllerRepresentable {
         self.isPaused = isPaused
         self.isGalleryPresented = isGalleryPresented
         self.videoCaptureDevice = videoCaptureDevice
+        self.zoomFactor = zoomFactor
+        self.minZoomFactor = minZoomFactor
+        self.maxZoomFactor = maxZoomFactor
         self.completion = completion
     }
 
@@ -131,7 +140,8 @@ public struct CodeScannerView: UIViewControllerRepresentable {
             isTorchOn: isTorchOn,
             isGalleryPresented: isGalleryPresented.wrappedValue,
             isManualCapture: scanMode.isManual,
-            isManualSelect: manualSelect
+            isManualSelect: manualSelect,
+            zoomFactor: zoomFactor.wrappedValue
         )
     }
     
@@ -149,8 +159,65 @@ extension CodeScannerView {
 @available(macCatalyst 14.0, *)
 struct CodeScannerView_Previews: PreviewProvider {
     static var previews: some View {
-        CodeScannerView(codeTypes: [.qr]) { result in
-            // do nothing
+        ZoomableScannerExample()
+    }
+}
+
+@available(macCatalyst 14.0, *)
+struct ZoomableScannerExample: View {
+    @State private var zoomFactor: CGFloat = 1.0
+    @State private var scannedCode: String = ""
+    @State private var isShowingScanner = false
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Zoomable Code Scanner")
+                .font(.title)
+                .padding()
+            
+            if !scannedCode.isEmpty {
+                Text("Scanned Code: \(scannedCode)")
+                    .padding()
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(8)
+            }
+            
+            VStack {
+                Text("Zoom Level: \(String(format: "%.1f", zoomFactor))x")
+                    .font(.caption)
+                
+                Slider(value: $zoomFactor, in: 1.0...10.0, step: 0.1)
+                    .padding(.horizontal)
+            }
+            
+            Button("Start Scanning") {
+                isShowingScanner = true
+            }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+            
+            Text("Use pinch gestures to zoom in/out")
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .sheet(isPresented: $isShowingScanner) {
+            CodeScannerView(
+                codeTypes: [.qr, .ean8, .ean13, .pdf417],
+                zoomFactor: $zoomFactor,
+                minZoomFactor: 1.0,
+                maxZoomFactor: 10.0
+            ) { result in
+                switch result {
+                case .success(let scanResult):
+                    scannedCode = scanResult.string
+                    isShowingScanner = false
+                case .failure(let error):
+                    print("Scanning failed: \(error)")
+                }
+            }
         }
     }
 }

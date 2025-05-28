@@ -22,6 +22,8 @@ extension CodeScannerView {
         var didFinishScanning = false
         var lastTime = Date(timeIntervalSince1970: 0)
         private let showViewfinder: Bool
+        private var currentZoomFactor: CGFloat = 1.0
+        private var pinchGestureRecognizer: UIPinchGestureRecognizer?
         
         let fallbackVideoCaptureDevice = AVCaptureDevice.default(for: .video)
         
@@ -187,6 +189,9 @@ extension CodeScannerView {
             previewLayer.videoGravity = .resizeAspectFill
             view.layer.addSublayer(previewLayer)
             addViewFinder()
+            
+            // Add pinch gesture recognizer for zoom
+            setupPinchGesture()
 
             reset()
 
@@ -289,6 +294,65 @@ extension CodeScannerView {
                 imageView.heightAnchor.constraint(equalToConstant: 200),
             ])
         }
+        
+        private func setupPinchGesture() {
+            pinchGestureRecognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchGesture(_:)))
+            if let pinchGesture = pinchGestureRecognizer {
+                view.addGestureRecognizer(pinchGesture)
+            }
+        }
+        
+        @objc private func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
+            guard let device = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else { return }
+            
+            let minZoom = max(parentView.minZoomFactor, device.minAvailableVideoZoomFactor)
+            let maxZoom = min(parentView.maxZoomFactor, device.maxAvailableVideoZoomFactor)
+            
+            switch gesture.state {
+            case .began:
+                currentZoomFactor = device.videoZoomFactor
+                
+            case .changed:
+                let newZoomFactor = currentZoomFactor * gesture.scale
+                let clampedZoomFactor = max(minZoom, min(maxZoom, newZoomFactor))
+                
+                do {
+                    try device.lockForConfiguration()
+                    device.videoZoomFactor = clampedZoomFactor
+                    device.unlockForConfiguration()
+                    
+                    // Update the binding
+                    DispatchQueue.main.async {
+                        self.parentView.zoomFactor.wrappedValue = clampedZoomFactor
+                    }
+                } catch {
+                    print("Error setting zoom factor: \(error)")
+                }
+                
+            case .ended, .cancelled:
+                currentZoomFactor = device.videoZoomFactor
+                
+            default:
+                break
+            }
+        }
+        
+        private func setZoomFactor(_ zoomFactor: CGFloat) {
+            guard let device = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else { return }
+            
+            let minZoom = max(parentView.minZoomFactor, device.minAvailableVideoZoomFactor)
+            let maxZoom = min(parentView.maxZoomFactor, device.maxAvailableVideoZoomFactor)
+            let clampedZoomFactor = max(minZoom, min(maxZoom, zoomFactor))
+            
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = clampedZoomFactor
+                device.unlockForConfiguration()
+                currentZoomFactor = clampedZoomFactor
+            } catch {
+                print("Error setting zoom factor: \(error)")
+            }
+        }
 
         override public func viewDidDisappear(_ animated: Bool) {
             super.viewDidDisappear(animated)
@@ -297,6 +361,11 @@ extension CodeScannerView {
                 DispatchQueue.global(qos: .userInteractive).async {
                     self.captureSession?.stopRunning()
                 }
+            }
+            
+            // Remove pinch gesture recognizer
+            if let pinchGesture = pinchGestureRecognizer {
+                view.removeGestureRecognizer(pinchGesture)
             }
 
             NotificationCenter.default.removeObserver(self)
@@ -373,7 +442,7 @@ extension CodeScannerView {
         }
         #endif
         
-        func updateViewController(isTorchOn: Bool, isGalleryPresented: Bool, isManualCapture: Bool, isManualSelect: Bool) {
+        func updateViewController(isTorchOn: Bool, isGalleryPresented: Bool, isManualCapture: Bool, isManualSelect: Bool, zoomFactor: CGFloat) {
             guard let videoCaptureDevice = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else {
                 return
             }
@@ -382,6 +451,11 @@ extension CodeScannerView {
                 try? videoCaptureDevice.lockForConfiguration()
                 videoCaptureDevice.torchMode = isTorchOn ? .on : .off
                 videoCaptureDevice.unlockForConfiguration()
+            }
+            
+            // Update zoom factor if it has changed
+            if abs(videoCaptureDevice.videoZoomFactor - zoomFactor) > 0.01 {
+                setZoomFactor(zoomFactor)
             }
             
             if isGalleryPresented, !isGalleryShowing {

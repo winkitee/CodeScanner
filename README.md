@@ -33,9 +33,14 @@ You can provide a variety of extra customization options to `CodeScannerView` in
 - `scanMode` can be `.once` to scan a single code, `.oncePerCode` to scan many codes but only trigger finding each unique code once, and `.continuous` will keep finding codes until you dismiss the scanner. Default: `.once`.
 - `scanInterval` controls how fast individual codes should be scanned (in seconds) when running in `.continuous` scan mode.
 - `showViewfinder` determines whether to show a box-like viewfinder over the UI. Default: false.
-- `simulatedData` allows you to provide some test data to use in Simulator, when real scanning isn’t available. Default: an empty string.
+- `simulatedData` allows you to provide some test data to use in Simulator, when real scanning isn't available. Default: an empty string.
 - `shouldVibrateOnSuccess` allows you to determine whether device should vibrate when a code is found. Default: true.
-- `videoCaptureDevice` allows you to choose different capture device that is most suitable for code to scan. 
+- `videoCaptureDevice` allows you to choose different capture device that is most suitable for code to scan.
+- `zoomFactor` allows you to control the camera zoom level programmatically. This is a binding that can be updated from your SwiftUI view. Default: 1.0.
+- `minZoomFactor` sets the minimum allowed zoom level. Default: 1.0.
+- `maxZoomFactor` sets the maximum allowed zoom level. Default: 10.0.
+
+The scanner also supports pinch-to-zoom gestures, allowing users to zoom in and out by pinching the camera view.
 
 If you want to add UI customization, such as a dedicated Cancel button, you should wrap your `CodeScannerView` instance in a `NavigationView` and use a `toolbar()` modifier to add whatever buttons you want.
 
@@ -88,6 +93,55 @@ struct QRCodeScannerExampleView: View {
 }
 ```
 
+## Using zoom functionality
+
+CodeScanner now supports zoom functionality through both programmatic control and pinch gestures. Here's how to implement a scanner with zoom controls:
+
+```swift
+struct ZoomableScannerView: View {
+    @State private var zoomFactor: CGFloat = 1.0
+    @State private var isPresentingScanner = false
+    @State private var scannedCode: String?
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Zoom Level: \(String(format: "%.1f", zoomFactor))x")
+                .font(.caption)
+            
+            Slider(value: $zoomFactor, in: 1.0...10.0, step: 0.1)
+                .padding(.horizontal)
+            
+            Button("Scan with Zoom") {
+                isPresentingScanner = true
+            }
+            
+            Text("Use pinch gestures to zoom in the camera view")
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .sheet(isPresented: $isPresentingScanner) {
+            CodeScannerView(
+                codeTypes: [.qr],
+                zoomFactor: $zoomFactor,
+                minZoomFactor: 1.0,
+                maxZoomFactor: 10.0
+            ) { response in
+                if case let .success(result) = response {
+                    scannedCode = result.string
+                    isPresentingScanner = false
+                }
+            }
+        }
+    }
+}
+```
+
+The zoom functionality includes:
+- **Programmatic control**: Use the `zoomFactor` binding to control zoom from your UI
+- **Pinch gestures**: Users can pinch the camera view to zoom in and out
+- **Zoom limits**: Set `minZoomFactor` and `maxZoomFactor` to control the zoom range
+- **Real-time updates**: The `zoomFactor` binding updates in real-time as users pinch
+
 ## Scanning small QR codes
 
 Scanning small QR code on devices with dual or tripple cameras has to be adjusted because of minimum focus distance built in these cameras.
@@ -109,7 +163,7 @@ CodeScannerView(codeTypes: [.qr], videoCaptureDevice: AVCaptureDevice.zoomedCame
 
 ## Credits
 
-CodeScanner was made by [Paul Hudson](https://twitter.com/twostraws), who writes [free Swift tutorials over at Hacking with Swift](https://www.hackingwithswift.com), and is now maintained by [Nathan Fallet](https://nathanfallet.me). It’s available under the MIT license, which permits commercial use, modification, distribution, and private use.
+CodeScanner was made by [Paul Hudson](https://twitter.com/twostraws), who writes [free Swift tutorials over at Hacking with Swift](https://www.hackingwithswift.com), and is now maintained by [Nathan Fallet](https://nathanfallet.me). It's available under the MIT license, which permits commercial use, modification, distribution, and private use.
 
 
 ## License
