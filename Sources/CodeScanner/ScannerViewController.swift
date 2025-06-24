@@ -10,7 +10,7 @@
 import AVFoundation
 import UIKit
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView {
     
     public final class ScannerViewController: UIViewController, UINavigationControllerDelegate {
@@ -405,26 +405,6 @@ extension CodeScannerView {
             }
         }
         
-        private func setZoomFactor(_ zoomFactor: CGFloat) {
-            guard let device = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else { return }
-            
-            let minZoom = max(parentView.minZoomFactor, device.minAvailableVideoZoomFactor)
-            let maxZoom = min(parentView.maxZoomFactor, device.maxAvailableVideoZoomFactor)
-            let clampedZoomFactor = max(minZoom, min(maxZoom, zoomFactor))
-            
-            do {
-                try device.lockForConfiguration()
-                
-                // For programmatic zoom changes, use direct assignment for immediate response
-                device.videoZoomFactor = clampedZoomFactor
-                
-                device.unlockForConfiguration()
-                currentZoomFactor = clampedZoomFactor
-            } catch {
-                print("Error setting zoom factor: \(error)")
-            }
-        }
-
         override public func viewDidDisappear(_ animated: Bool) {
             super.viewDidDisappear(animated)
 
@@ -539,6 +519,26 @@ extension CodeScannerView {
             #endif
         }
         
+        func setZoomFactor(_ zoomFactor: CGFloat) {
+            guard let device = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else { return }
+            
+            let minZoom = max(parentView.minZoomFactor, device.minAvailableVideoZoomFactor)
+            let maxZoom = min(parentView.maxZoomFactor, device.maxAvailableVideoZoomFactor)
+            let clampedZoomFactor = max(minZoom, min(maxZoom, zoomFactor))
+            
+            do {
+                try device.lockForConfiguration()
+                
+                // For programmatic zoom changes, use direct assignment for immediate response
+                device.videoZoomFactor = clampedZoomFactor
+                
+                device.unlockForConfiguration()
+                currentZoomFactor = clampedZoomFactor
+            } catch {
+                print("Error setting zoom factor: \(error)")
+            }
+        }
+
         public func reset() {
             codesFound.removeAll()
             didFinishScanning = false
@@ -580,7 +580,7 @@ extension CodeScannerView {
 
 // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView.ScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
     public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
 
@@ -640,7 +640,7 @@ extension CodeScannerView.ScannerViewController: AVCaptureMetadataOutputObjectsD
 
 // MARK: - UIImagePickerControllerDelegate
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView.ScannerViewController: UIImagePickerControllerDelegate {
     public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
         isGalleryShowing = false
@@ -688,7 +688,7 @@ extension CodeScannerView.ScannerViewController: UIImagePickerControllerDelegate
 
 // MARK: - UIAdaptivePresentationControllerDelegate
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView.ScannerViewController: UIAdaptivePresentationControllerDelegate {
     public func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         // Gallery is no longer being presented
@@ -698,7 +698,7 @@ extension CodeScannerView.ScannerViewController: UIAdaptivePresentationControlle
 
 // MARK: - AVCapturePhotoCaptureDelegate
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView.ScannerViewController: AVCapturePhotoCaptureDelegate {
     
     public func photoOutput(
@@ -736,7 +736,7 @@ extension CodeScannerView.ScannerViewController: AVCapturePhotoCaptureDelegate {
 
 // MARK: - AVCaptureDevice
 
-@available(macCatalyst 14.0, *)
+
 public extension AVCaptureDevice {
     
     /// This returns the Ultra Wide Camera on capable devices and the default Camera for Video otherwise.

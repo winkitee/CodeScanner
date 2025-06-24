@@ -28,7 +28,7 @@ public enum ScanError: Error {
 /// The result from a successful scan: the string that was scanned, and also the type of data that was found.
 /// The type is useful for times when you've asked to scan several different code types at the same time, because
 /// it will report the exact code type that was found.
-@available(macCatalyst 14.0, *)
+
 public struct ScanResult {
     /// The contents of the code.
     public let string: String
@@ -74,7 +74,7 @@ public enum ScanMode {
 /// To use, set `codeTypes` to be an array of things to scan for, e.g. `[.qr]`, and set `completion` to
 /// a closure that will be called when scanning has finished. This will be sent the string that was detected or a `ScanError`.
 /// For testing inside the simulator, set the `simulatedData` property to some test data you want to send back.
-@available(macCatalyst 14.0, *)
+
 public struct CodeScannerView: UIViewControllerRepresentable {
     
     public let codeTypes: [AVMetadataObject.ObjectType]
@@ -147,7 +147,7 @@ public struct CodeScannerView: UIViewControllerRepresentable {
     
 }
 
-@available(macCatalyst 14.0, *)
+
 extension CodeScannerView {
 
     @available(*, deprecated, renamed: "requiresPhotoOutput")
@@ -156,14 +156,14 @@ extension CodeScannerView {
     }
 }
 
-@available(macCatalyst 14.0, *)
+
 struct CodeScannerView_Previews: PreviewProvider {
     static var previews: some View {
         ZoomableScannerExample()
     }
 }
 
-@available(macCatalyst 14.0, *)
+
 struct ZoomableScannerExample: View {
     @State private var zoomFactor: CGFloat = 1.0
     @State private var scannedCode: String = ""
